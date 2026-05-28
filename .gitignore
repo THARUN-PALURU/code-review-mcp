@@ -1,0 +1,5 @@
+venv/          ← entire venv folder ignored 
+.env           ← API key protected 
+__pycache__/   ← bytecode ignored 
+*.pyc          ← compiled files ignored 
+.DS_Store      ← Mac junk ignored 
