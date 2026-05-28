@@ -7,12 +7,14 @@
 
 import contextlib
 import logging
+import os
+import uvicorn
 from mcp.server import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp import types
 from starlette.applications import Starlette
-from starlette.routing import Mount
-import uvicorn
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 from reviewer import review_code, review_diff
 
@@ -86,7 +88,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 session_manager = StreamableHTTPSessionManager(
     app=app,
     event_store=None,
-    json_response=False,
+    json_response=True,
     stateless=True,
 )
 
@@ -94,7 +96,7 @@ session_manager = StreamableHTTPSessionManager(
 @contextlib.asynccontextmanager
 async def lifespan(starlette_app):
     async with session_manager.run():
-        log.info("Code Review MCP Server running on http://0.0.0.0:8000/mcp")
+        log.info("Code Review MCP Server running at /mcp")
         yield
 
 
@@ -102,13 +104,21 @@ async def mcp_asgi_app(scope, receive, send):
     await session_manager.handle_request(scope, receive, send)
 
 
+async def health(request):
+    return JSONResponse({
+        "status": "ok",
+        "mcp_endpoint": "/mcp"
+    })
+
 web_app = Starlette(
     lifespan=lifespan,
     routes=[
+        Route("/", health, methods=["GET"]),
         Mount("/mcp", app=mcp_asgi_app),
     ]
 )
 
 
 if __name__ == "__main__":
-    uvicorn.run(web_app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run(web_app, host="0.0.0.0", port=port)
