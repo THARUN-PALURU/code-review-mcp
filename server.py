@@ -85,11 +85,12 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 # ── Streamable HTTP Transport ──────────────────────────────────────
 
+# exposes your MCP server over HTTP:
 session_manager = StreamableHTTPSessionManager(
     app=app,
     event_store=None,
     json_response=True,
-    stateless=True,
+    stateless=True,   #Do not depend on long-lived server memory/session state
 )
 
 
@@ -99,26 +100,27 @@ async def lifespan(starlette_app):
         log.info("Code Review MCP Server running at /mcp")
         yield
 
-
+# passes web requests into the MCP session manager:
 async def mcp_asgi_app(scope, receive, send):
     await session_manager.handle_request(scope, receive, send)
 
-
+# This route is only for browser testing:
 async def health(request):
     return JSONResponse({
         "status": "ok",
         "mcp_endpoint": "/mcp"
     })
 
+# This mounts the MCP endpoint:
 web_app = Starlette(
     lifespan=lifespan,
     routes=[
-        Route("/", health, methods=["GET"]),
-        Mount("/mcp", app=mcp_asgi_app),
+        Route("/", health, methods=["GET"]),  # '/'      -> health check
+        Mount("/mcp", app=mcp_asgi_app),      # '/mcp'   -> MCP endpoint
     ]
 )
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run(web_app, host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", "8000")) #Railway gives your app a port through the environment variable:
+    uvicorn.run(web_app, host="0.0.0.0", port=port) #Your app must listen on: 0.0.0.0 not localhost, because Railway needs to route external traffic into your container.
